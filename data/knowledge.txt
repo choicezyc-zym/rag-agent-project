@@ -1,0 +1,16 @@
+RAG means Retrieval-Augmented Generation.
+RAG first retrieves relevant information from a knowledge base and then generates an answer based on that information.
+A RAG system usually contains a retriever and a generator.
+
+An AI Agent can use tools to complete tasks.
+The core idea of an AI Agent is planning and acting.
+In this project, the LLM plans and Python executes tools.
+
+Transformer is based on self-attention.
+Attention helps the model focus on the most relevant parts of the input.
+Query, Key, and Value are used to compute attention.
+Multi-head attention allows the model to learn from multiple perspectives.
+
+CNN is a neural network commonly used for image tasks.
+Convolution layers extract local features.
+Pooling layers reduce feature size and keep important information.
