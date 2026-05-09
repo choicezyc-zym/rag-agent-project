@@ -1,29 +1,26 @@
 # RAG Agent Project
 
-A local RAG + AI Agent system built with Python, Ollama, Qwen2.5, Sentence Transformers, and JSON tool calling.
+A local **RAG + Multi-step AI Agent Web App** built with Python, Ollama, Qwen2.5, Sentence Transformers, Streamlit, and JSON tool calling.
 
-This project combines a local Retrieval-Augmented Generation system with an AI Agent.  
-The Agent can decide whether to use a calculator, read a local file, call a RAG tool, or use a general LLM response.
+This project combines three core ideas:
 
-The project also includes a basic multi-step Agent version.  
-The multi-step Agent can plan, execute tools, save tool results into history, and continue until it outputs a final answer.
+```text
+RAG provides local knowledge.
+Agent selects and uses tools.
+Streamlit provides a simple web interface.
+```
+
+The system can answer questions using a local knowledge base, call tools such as a calculator or file reader, and show each Agent execution step in a web UI.
 
 ---
 
 ## Project Goal
 
-The goal of this project is to understand how RAG and Agent systems can be combined.
+The goal of this project is to understand how a local RAG system can be combined with an AI Agent and upgraded into a simple web application.
 
-The core idea is:
+The project started as a command-line RAG Agent. It was later upgraded into a basic multi-step Agent and then into a Streamlit web app.
 
-```text
-RAG is a knowledge tool.
-Agent is the controller.
-```
-
-In this project, the RAG system is wrapped as a tool called `rag_tool`, and the Agent can decide when to call it.
-
-The upgraded multi-step Agent adds another idea:
+Core idea:
 
 ```text
 LLM plans.
@@ -34,44 +31,38 @@ Final stops the loop.
 
 ---
 
-## Core Idea
+## Main Features
 
-### Single-step Agent Workflow
+- Local knowledge base question answering
+- Text chunking and embedding generation
+- Semantic retrieval with cosine similarity
+- RAG pipeline wrapped as a callable tool
+- JSON-based tool calling
+- Python tool execution
+- Single-step Agent
+- Multi-step Agent loop
+- Tool execution history tracking
+- Streamlit web interface
+- Example task buttons
+- Final answer display
+- Agent step-by-step execution display
+- Page session history
+- Local LLM inference with Ollama and Qwen2.5
 
-```text
-User Input
-    ↓
-Qwen2.5 generates a JSON tool call plan
-    ↓
-Python parses the JSON plan
-    ↓
-Python calls the selected tool
-    ↓
-Tool returns the result
-    ↓
-Agent saves execution history
-```
+---
 
-### Multi-step Agent Workflow
-
-```text
-User Goal
-    ↓
-Qwen2.5 generates the next JSON tool plan
-    ↓
-Python parses and executes the selected tool
-    ↓
-Tool result is saved into history
-    ↓
-Qwen2.5 uses history to decide the next step
-    ↓
-The loop stops when tool = "final"
-```
-
-The most important concept is:
+## Tech Stack
 
 ```text
-LLM plans, Python executes.
+Python
+Ollama
+Qwen2.5:7B
+Sentence Transformers
+scikit-learn
+Streamlit
+JSON tool calling
+JSONL logging
+pickle
 ```
 
 ---
@@ -91,6 +82,7 @@ rag_agent_project/
 │   └── multi_step_history.jsonl
 │
 ├── src/
+│   ├── app.py
 │   ├── build_index.py
 │   ├── rag_tool.py
 │   ├── tools.py
@@ -110,65 +102,62 @@ rag_agent_project/
 
 ### `data/knowledge.txt`
 
-This is the local knowledge base.
-
-The RAG tool retrieves relevant information from this file and uses it to answer user questions.
+The local knowledge base used by the RAG system.
 
 ---
 
 ### `src/build_index.py`
 
-This file builds the RAG index.
+Builds the RAG index.
 
-It performs the following steps:
+Workflow:
 
 ```text
 Read knowledge.txt
-    ↓
+↓
 Split text into chunks
-    ↓
-Generate embeddings for each chunk
-    ↓
-Save chunks.pkl and chunk_embeddings.pkl
+↓
+Generate embeddings
+↓
+Save chunks and embeddings to outputs/
 ```
 
-The generated index files are saved in the `outputs/` folder.
+Generated files:
+
+```text
+outputs/chunks.pkl
+outputs/chunk_embeddings.pkl
+```
 
 ---
 
 ### `src/rag_tool.py`
 
-This file defines the RAG tool.
+Defines the RAG tool.
 
-The main function is:
-
-```python
-rag_tool(query)
-```
-
-It performs:
+The RAG tool:
 
 ```text
-Load chunks and embeddings
-    ↓
-Convert user query into embedding
-    ↓
-Compute cosine similarity
-    ↓
-Retrieve relevant chunks
-    ↓
-Send retrieved context to Qwen2.5
-    ↓
-Generate an answer based on local knowledge
+Loads local chunks and embeddings
+↓
+Converts the user query into an embedding
+↓
+Computes cosine similarity
+↓
+Retrieves relevant chunks
+↓
+Sends retrieved context to Qwen2.5
+↓
+Generates an answer based on local knowledge
 ```
 
-It also includes lazy loading, so the embedding model and index are loaded only once during runtime.
+The embedding model and RAG index use lazy loading, so they are loaded only once during runtime.
 
 ---
 
 ### `src/tools.py`
 
-This file defines basic tools that the Agent can call.
+Defines basic tools that the Agent can call.
 
 Current tools:
 
@@ -177,30 +166,37 @@ calculator_tool
 file_reader_tool
 ```
 
-- `calculator_tool` is used for mathematical calculations.
-- `file_reader_tool` is used for reading local txt files.
+The calculator tool handles simple mathematical expressions. The file reader tool reads local text files.
 
 ---
 
 ### `src/llm.py`
 
-This file wraps the local LLM call.
+Wraps the local LLM call.
 
-It uses Ollama to call Qwen2.5 locally:
-
-```python
-ask_llm(prompt)
-```
-
-This keeps the LLM API logic separate from the Agent logic.
+It uses Ollama to call Qwen2.5 locally.
 
 ---
 
 ### `src/agent.py`
 
-This is the single-step Agent program.
+The single-step Agent.
 
-It receives user input, asks Qwen2.5 to generate a JSON tool call plan, parses the plan, calls the selected tool, and saves the execution history.
+Workflow:
+
+```text
+User input
+↓
+LLM generates a JSON tool call plan
+↓
+Python parses the JSON
+↓
+Python executes one selected tool
+↓
+Tool result is returned
+↓
+Execution history is saved
+```
 
 Supported tools:
 
@@ -215,43 +211,62 @@ llm
 
 ### `src/multi_step_agent.py`
 
-This is the multi-step Agent program.
+The multi-step Agent.
 
 It can complete a task through multiple rounds of planning, tool execution, observation, and final answer generation.
 
-It uses:
+Workflow:
 
 ```text
-tool registry
+User goal
+↓
+LLM generates the next JSON tool plan
+↓
+Python parses and executes the selected tool
+↓
+Tool result is saved into history
+↓
+LLM uses history to decide the next step
+↓
+The loop stops when tool = final
+```
+
+Key components:
+
+```text
+Tool registry
 JSON tool plan
-history
+History
 max_steps
 final stop signal
 ```
 
-The basic workflow is:
+The `final` signal is not a real tool. It tells the Agent loop to stop and return the final answer.
 
-```text
-Plan → Act → Observe → Reflect → Final Answer
-```
+---
 
-Supported tools:
+### `src/app.py`
 
-```text
-calculator
-file_reader
-rag
-llm
-final
-```
+The Streamlit web app.
 
-Note: `final` is not a real tool. It is a stop signal used to end the multi-step loop.
+It provides a simple web interface for the multi-step RAG Agent.
+
+The web app supports:
+
+- User task input
+- Example task buttons
+- Max step control
+- Final answer display
+- Agent execution step display
+- Tool input and tool result display
+- Page session history
+- Clear page history button
 
 ---
 
 ### `src/utils.py`
 
-This file contains utility functions for saving and loading pickle files.
+Utility functions for saving and loading pickle files.
 
 ---
 
@@ -264,37 +279,31 @@ Used for mathematical calculation.
 Example:
 
 ```text
-calculate 23 * 17
+calculate 23 * 17 and explain the result
 ```
 
-Expected tool call plan:
+Expected tool:
 
-```json
-{
-  "tool": "calculator",
-  "input": "23 * 17"
-}
+```text
+calculator
 ```
 
 ---
 
 ### 2. File Reader Tool
 
-Used for reading local txt files.
+Used for reading local text files.
 
 Example:
 
 ```text
-read data/knowledge.txt
+read data/knowledge.txt and summarize the difference between RAG and Agent
 ```
 
-Expected tool call plan:
+Expected tool:
 
-```json
-{
-  "tool": "file_reader",
-  "input": "data/knowledge.txt"
-}
+```text
+file_reader
 ```
 
 ---
@@ -306,16 +315,13 @@ Used for answering questions based on the local knowledge base.
 Example:
 
 ```text
-what is RAG?
+what is RAG? Use the local knowledge base to answer.
 ```
 
-Expected tool call plan:
+Expected tool:
 
-```json
-{
-  "tool": "rag",
-  "input": "what is RAG?"
-}
+```text
+rag
 ```
 
 ---
@@ -330,48 +336,34 @@ Example:
 Give me one sentence to encourage AI learning.
 ```
 
-Expected tool call plan:
+Expected tool:
 
-```json
-{
-  "tool": "llm",
-  "input": "Give me one sentence to encourage AI learning."
-}
-```
-
----
-
-### 5. Final Signal
-
-Used only in the multi-step Agent.
-
-It means the task is complete and the loop should stop.
-
-Example:
-
-```json
-{
-  "thought": "I have enough information to answer.",
-  "tool": "final",
-  "input": "RAG retrieves information before generating an answer, while an Agent uses tools to complete tasks."
-}
+```text
+llm
 ```
 
 ---
 
 ## Installation
 
-### 1. Install Python dependencies
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/choicezyc-zym/rag-agent-project.git
+cd rag-agent-project
+```
+
+### 2. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Install and run Ollama
+### 3. Install and run Ollama
 
 Make sure Ollama is installed and running locally.
 
-### 3. Pull Qwen2.5 model
+### 4. Pull Qwen2.5
 
 ```bash
 ollama pull qwen2.5:7b
@@ -381,11 +373,14 @@ ollama pull qwen2.5:7b
 
 ## Requirements
 
+The `requirements.txt` file should include:
+
 ```txt
 sentence-transformers
 scikit-learn
 requests
 numpy
+streamlit
 ```
 
 ---
@@ -394,7 +389,7 @@ numpy
 
 ### Step 1: Build the RAG index
 
-Run this command first:
+Run this command from the project root:
 
 ```bash
 python src/build_index.py
@@ -409,7 +404,7 @@ outputs/chunk_embeddings.pkl
 
 ---
 
-### Step 2: Start the single-step Agent
+### Step 2: Run the single-step Agent
 
 ```bash
 python src/agent.py
@@ -417,7 +412,7 @@ python src/agent.py
 
 ---
 
-### Step 3: Start the multi-step Agent
+### Step 3: Run the multi-step Agent in command line
 
 ```bash
 python src/multi_step_agent.py
@@ -425,126 +420,83 @@ python src/multi_step_agent.py
 
 ---
 
-## Example Usage
+### Step 4: Run the Streamlit Web App
 
-### Example 1: Calculator
-
-Input:
-
-```text
-calculate 23 * 17
+```bash
+streamlit run src/app.py
 ```
 
-Output:
+Then open the local Streamlit URL in your browser.
+
+The web app allows you to enter a task, run the Agent, view the final answer, and inspect each tool execution step.
+
+---
+
+## Example Tasks
+
+### Calculator
 
 ```text
-工具调用计划：
-{
-  "tool": "calculator",
-  "input": "23 * 17"
-}
+calculate 23 * 17 and explain the result
+```
 
-执行结果：
-计算结果：23 * 17 = 391
+Expected behavior:
+
+```text
+Step 1 | Tool: calculator
+Final Answer: 23 * 17 = 391
 ```
 
 ---
 
-### Example 2: File Reading
-
-Input:
+### RAG Question Answering
 
 ```text
-read data/knowledge.txt
+what is RAG? Use the local knowledge base to answer.
 ```
 
-Output:
+Expected behavior:
 
 ```text
-工具调用计划：
-{
-  "tool": "file_reader",
-  "input": "data/knowledge.txt"
-}
-
-执行结果：
-文件内容：
-...
+Step 1 | Tool: rag
+Final Answer: Answer based on retrieved local knowledge
 ```
 
 ---
 
-### Example 3: RAG Question Answering
-
-Input:
-
-```text
-what is Transformer?
-```
-
-Output:
-
-```text
-工具调用计划：
-{
-  "tool": "rag",
-  "input": "what is Transformer?"
-}
-
-执行结果：
-Transformer is based on self-attention...
-参考来源：
-[1] score=...
-```
-
----
-
-### Example 4: General LLM Response
-
-Input:
-
-```text
-Give me one sentence to encourage AI learning.
-```
-
-Output:
-
-```text
-工具调用计划：
-{
-  "tool": "llm",
-  "input": "Give me one sentence to encourage AI learning."
-}
-
-执行结果：
-...
-```
-
----
-
-### Example 5: Multi-step Agent
-
-Input:
+### File Reading and Summarization
 
 ```text
 read data/knowledge.txt and summarize the difference between RAG and Agent
 ```
 
-Possible workflow:
+Expected behavior:
 
 ```text
-Step 1:
-The Agent calls file_reader to read data/knowledge.txt.
-
-Step 2:
-The Agent uses the file content in history and outputs a final answer.
+Step 1 | Tool: file_reader
+Final Answer: Summary based on the file content
 ```
 
-Final answer example:
+---
+
+## Streamlit Web App
+
+The web app turns the command-line Agent into a simple product-style interface.
+
+It includes:
 
 ```text
-RAG retrieves relevant information from a knowledge base before generating an answer. An AI Agent uses tools to complete tasks, focusing on planning and acting.
+Input box
+Run Agent button
+Example buttons
+Max steps slider
+Final answer area
+Agent execution steps
+Page run history
+Clear history button
 ```
+
+This makes the project easier to demonstrate and closer to a real AI application.
 
 ---
 
@@ -562,7 +514,7 @@ Multi-step Agent history is saved in:
 outputs/multi_step_history.jsonl
 ```
 
-Each record is useful for:
+Each record can be used for:
 
 - Debugging
 - Checking tool selection
@@ -586,6 +538,7 @@ Through this project, I learned:
 - How to log Agent execution history using JSONL
 - How to build a basic multi-step Agent loop
 - How to use history, `max_steps`, and `final` to control multi-step execution
+- How to build a simple Streamlit web interface for an AI Agent
 
 ---
 
@@ -596,10 +549,10 @@ Through this project, I learned:
 `mini_rag_project` focuses on local knowledge-based question answering.
 
 ```text
-User Question
-    ↓
+User question
+↓
 Retrieve relevant chunks
-    ↓
+↓
 Generate answer with LLM
 ```
 
@@ -608,60 +561,48 @@ Generate answer with LLM
 `mini_agent_project` focuses on basic tool calling.
 
 ```text
-User Task
-    ↓
+User task
+↓
 LLM selects a tool
-    ↓
+↓
 Python executes the tool
 ```
 
 ### This Project
 
-`rag_agent_project` combines both ideas.
+`rag_agent_project` combines both ideas and adds a web interface.
 
 ```text
-User Task
-    ↓
+User task
+↓
 Agent selects calculator / file_reader / rag / llm
-    ↓
+↓
 Python executes the selected tool
+↓
+History stores the result
+↓
+Streamlit displays final answer and execution steps
 ```
 
 The key improvement is:
 
 ```text
-RAG becomes one of the Agent's tools.
-```
-
-The upgraded version also includes a basic multi-step Agent:
-
-```text
-User Goal
-    ↓
-Agent plans the next step
-    ↓
-Python executes the selected tool
-    ↓
-Result is saved into history
-    ↓
-Agent continues until final
+RAG becomes one of the Agent's tools, and the Agent workflow can be displayed in a web app.
 ```
 
 ---
 
 ## Limitations
 
-This is a minimal local RAG Agent system.
-
 Current limitations:
 
-- The knowledge base is small
+- The knowledge base is still small
 - The Agent only supports a few tools
 - JSON parsing fallback is simple
 - The multi-step Agent is still basic
 - Final answer formatting may sometimes need improvement
-- No web interface yet
-- No database or vector database integration yet
+- No vector database integration yet
+- No deployed online version yet
 
 ---
 
@@ -671,20 +612,21 @@ Possible future improvements:
 
 - Improve JSON retry and self-correction
 - Add more tools such as time, todo, web search, or database query
-- Add Streamlit or FastAPI interface
-- Replace pickle files with a vector database
+- Replace pickle files with a vector database such as FAISS or Chroma
 - Add conversation memory
 - Improve tool routing accuracy
 - Support larger local knowledge bases
 - Improve multi-step planning for more complex tasks
+- Add file upload support in the Streamlit app
+- Deploy the web app online
 
 ---
 
 ## Final Summary
 
-This project is a local RAG + AI Agent system.
+This project is a local RAG + Multi-step AI Agent Web App.
 
-It combines semantic retrieval, local LLM generation, JSON tool calling, Python tool execution, execution logging, and a basic multi-step Agent loop.
+It combines semantic retrieval, local LLM generation, JSON tool calling, Python tool execution, execution logging, multi-step Agent planning, and a Streamlit web interface.
 
 The main idea is:
 
@@ -693,7 +635,8 @@ The Agent decides what to do.
 The RAG tool provides local knowledge.
 Python executes the selected tool.
 History stores previous tool results.
+Streamlit displays the workflow.
 Final stops the multi-step loop.
 ```
 
-This project helped me understand how modern AI applications can combine models, knowledge bases, tools, and engineering workflows.
+This project helped me understand how modern AI applications combine models, knowledge bases, tools, memory, logging, and user interfaces into one system.
