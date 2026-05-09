@@ -5,6 +5,9 @@ A local RAG + AI Agent system built with Python, Ollama, Qwen2.5, Sentence Trans
 This project combines a local Retrieval-Augmented Generation system with an AI Agent.  
 The Agent can decide whether to use a calculator, read a local file, call a RAG tool, or use a general LLM response.
 
+The project also includes a basic multi-step Agent version.  
+The multi-step Agent can plan, execute tools, save tool results into history, and continue until it outputs a final answer.
+
 ---
 
 ## Project Goal
@@ -18,14 +21,22 @@ RAG is a knowledge tool.
 Agent is the controller.
 ```
 
-In this project, the RAG system is not the main program anymore.  
-It is wrapped as a tool called `rag_tool`, and the Agent can decide when to call it.
+In this project, the RAG system is wrapped as a tool called `rag_tool`, and the Agent can decide when to call it.
+
+The upgraded multi-step Agent adds another idea:
+
+```text
+LLM plans.
+Python executes.
+History stores observations.
+Final stops the loop.
+```
 
 ---
 
 ## Core Idea
 
-The workflow is:
+### Single-step Agent Workflow
 
 ```text
 User Input
@@ -39,6 +50,22 @@ Python calls the selected tool
 Tool returns the result
     ↓
 Agent saves execution history
+```
+
+### Multi-step Agent Workflow
+
+```text
+User Goal
+    ↓
+Qwen2.5 generates the next JSON tool plan
+    ↓
+Python parses and executes the selected tool
+    ↓
+Tool result is saved into history
+    ↓
+Qwen2.5 uses history to decide the next step
+    ↓
+The loop stops when tool = "final"
 ```
 
 The most important concept is:
@@ -60,7 +87,8 @@ rag_agent_project/
 ├── outputs/
 │   ├── chunks.pkl
 │   ├── chunk_embeddings.pkl
-│   └── agent_history.jsonl
+│   ├── agent_history.jsonl
+│   └── multi_step_history.jsonl
 │
 ├── src/
 │   ├── build_index.py
@@ -68,6 +96,7 @@ rag_agent_project/
 │   ├── tools.py
 │   ├── llm.py
 │   ├── agent.py
+│   ├── multi_step_agent.py
 │   └── utils.py
 │
 ├── README.md
@@ -169,7 +198,7 @@ This keeps the LLM API logic separate from the Agent logic.
 
 ### `src/agent.py`
 
-This is the main Agent program.
+This is the single-step Agent program.
 
 It receives user input, asks Qwen2.5 to generate a JSON tool call plan, parses the plan, calls the selected tool, and saves the execution history.
 
@@ -181,6 +210,42 @@ file_reader
 rag
 llm
 ```
+
+---
+
+### `src/multi_step_agent.py`
+
+This is the multi-step Agent program.
+
+It can complete a task through multiple rounds of planning, tool execution, observation, and final answer generation.
+
+It uses:
+
+```text
+tool registry
+JSON tool plan
+history
+max_steps
+final stop signal
+```
+
+The basic workflow is:
+
+```text
+Plan → Act → Observe → Reflect → Final Answer
+```
+
+Supported tools:
+
+```text
+calculator
+file_reader
+rag
+llm
+final
+```
+
+Note: `final` is not a real tool. It is a stop signal used to end the multi-step loop.
 
 ---
 
@@ -276,6 +341,24 @@ Expected tool call plan:
 
 ---
 
+### 5. Final Signal
+
+Used only in the multi-step Agent.
+
+It means the task is complete and the loop should stop.
+
+Example:
+
+```json
+{
+  "thought": "I have enough information to answer.",
+  "tool": "final",
+  "input": "RAG retrieves information before generating an answer, while an Agent uses tools to complete tasks."
+}
+```
+
+---
+
 ## Installation
 
 ### 1. Install Python dependencies
@@ -326,10 +409,18 @@ outputs/chunk_embeddings.pkl
 
 ---
 
-### Step 2: Start the RAG Agent
+### Step 2: Start the single-step Agent
 
 ```bash
 python src/agent.py
+```
+
+---
+
+### Step 3: Start the multi-step Agent
+
+```bash
+python src/multi_step_agent.py
 ```
 
 ---
@@ -431,27 +522,47 @@ Output:
 
 ---
 
+### Example 5: Multi-step Agent
+
+Input:
+
+```text
+read data/knowledge.txt and summarize the difference between RAG and Agent
+```
+
+Possible workflow:
+
+```text
+Step 1:
+The Agent calls file_reader to read data/knowledge.txt.
+
+Step 2:
+The Agent uses the file content in history and outputs a final answer.
+```
+
+Final answer example:
+
+```text
+RAG retrieves relevant information from a knowledge base before generating an answer. An AI Agent uses tools to complete tasks, focusing on planning and acting.
+```
+
+---
+
 ## Execution History
 
-Each Agent execution is saved in:
+Single-step Agent history is saved in:
 
 ```text
 outputs/agent_history.jsonl
 ```
 
-Each record contains:
+Multi-step Agent history is saved in:
 
-```json
-{
-  "time": "2026-05-08T12:00:00",
-  "user_input": "what is RAG?",
-  "tool": "rag",
-  "tool_input": "what is RAG?",
-  "result": "..."
-}
+```text
+outputs/multi_step_history.jsonl
 ```
 
-This is useful for:
+Each record is useful for:
 
 - Debugging
 - Checking tool selection
@@ -473,6 +584,8 @@ Through this project, I learned:
 - How to use cosine similarity for chunk retrieval
 - How to call Qwen2.5 locally with Ollama
 - How to log Agent execution history using JSONL
+- How to build a basic multi-step Agent loop
+- How to use history, `max_steps`, and `final` to control multi-step execution
 
 ---
 
@@ -520,6 +633,20 @@ The key improvement is:
 RAG becomes one of the Agent's tools.
 ```
 
+The upgraded version also includes a basic multi-step Agent:
+
+```text
+User Goal
+    ↓
+Agent plans the next step
+    ↓
+Python executes the selected tool
+    ↓
+Result is saved into history
+    ↓
+Agent continues until final
+```
+
 ---
 
 ## Limitations
@@ -528,10 +655,11 @@ This is a minimal local RAG Agent system.
 
 Current limitations:
 
-- Only supports single-step tool calling
 - The knowledge base is small
-- The Agent only supports four tools
+- The Agent only supports a few tools
 - JSON parsing fallback is simple
+- The multi-step Agent is still basic
+- Final answer formatting may sometimes need improvement
 - No web interface yet
 - No database or vector database integration yet
 
@@ -541,14 +669,14 @@ Current limitations:
 
 Possible future improvements:
 
-- Add multi-step tool calling
-- Add JSON retry and self-correction
+- Improve JSON retry and self-correction
 - Add more tools such as time, todo, web search, or database query
 - Add Streamlit or FastAPI interface
 - Replace pickle files with a vector database
 - Add conversation memory
 - Improve tool routing accuracy
 - Support larger local knowledge bases
+- Improve multi-step planning for more complex tasks
 
 ---
 
@@ -556,7 +684,7 @@ Possible future improvements:
 
 This project is a local RAG + AI Agent system.
 
-It combines semantic retrieval, local LLM generation, JSON tool calling, Python tool execution, and execution logging.
+It combines semantic retrieval, local LLM generation, JSON tool calling, Python tool execution, execution logging, and a basic multi-step Agent loop.
 
 The main idea is:
 
@@ -564,6 +692,8 @@ The main idea is:
 The Agent decides what to do.
 The RAG tool provides local knowledge.
 Python executes the selected tool.
+History stores previous tool results.
+Final stops the multi-step loop.
 ```
 
 This project helped me understand how modern AI applications can combine models, knowledge bases, tools, and engineering workflows.
