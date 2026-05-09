@@ -3,6 +3,11 @@ import os
 import re
 from datetime import datetime
 
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
+MULTI_STEP_HISTORY_PATH = os.path.join(OUTPUT_DIR, "multi_step_history.jsonl")
+
 from llm import ask_llm
 from tools import calculator_tool, file_reader_tool
 from rag_tool import rag_tool
@@ -154,23 +159,22 @@ Output format:
 # 5. 保存 history 到 JSONL
 # =========================
 
-def save_history_record(user_goal: str, history: list, final_answer: str):
+def save_history_record(user_goal, history, final_answer):
     """
-    把一次完整 multi-step 任务保存到 outputs/multi_step_history.jsonl
+    Save one multi-step agent execution record to outputs/multi_step_history.jsonl.
+    The path is based on the project root, not the current working directory.
     """
-
-    os.makedirs("outputs", exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     record = {
-        "time": datetime.now().isoformat(timespec="seconds"),
+        "timestamp": datetime.now().isoformat(),
         "user_goal": user_goal,
-        "steps": history,
-        "final_answer": final_answer,
+        "history": history,
+        "final_answer": final_answer
     }
 
-    with open("outputs/multi_step_history.jsonl", "a", encoding="utf-8") as f:
+    with open(MULTI_STEP_HISTORY_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
-
 
 # =========================
 # 6. Multi-step Agent 主函数
@@ -233,6 +237,65 @@ def run_multi_step_agent(user_goal: str, max_steps: int = 5) -> str:
     final_answer = "Agent reached max_steps before completing the task."
     save_history_record(user_goal, history, final_answer)
     return final_answer
+
+
+
+
+def run_multi_step_agent_with_history(user_goal, max_steps=5):
+    """
+    Streamlit version of the multi-step agent.
+
+    It returns both:
+    - final_answer
+    - history
+
+    This makes it easier to display the agent execution steps in a web UI.
+    """
+    history = []
+
+    for step in range(1, max_steps + 1):
+        prompt = build_agent_prompt(user_goal, history)
+        raw_output = ask_llm(prompt)
+
+        print(f"\n--- Step {step} LLM Raw Output ---")
+        print(raw_output)
+
+        plan = extract_json(raw_output)
+
+        if plan is None:
+            final_answer = "Agent failed to parse JSON plan."
+            save_history_record(user_goal, history, final_answer)
+            return final_answer, history
+
+        thought = plan.get("thought", "")
+        tool_name = plan.get("tool", "")
+        tool_input = plan.get("input", "")
+
+        print(f"\nStep {step}")
+        print(f"Thought: {thought}")
+        print(f"Tool: {tool_name}")
+        print(f"Input: {tool_input}")
+
+        if tool_name == "final":
+            final_answer = str(tool_input).strip()
+            save_history_record(user_goal, history, final_answer)
+            return final_answer, history
+
+        tool_result = run_tool(tool_name, tool_input)
+
+        print(f"Result: {tool_result}")
+
+        history.append({
+            "step": step,
+            "thought": thought,
+            "tool": tool_name,
+            "input": tool_input,
+            "result": str(tool_result)[:2000]
+        })
+
+    final_answer = "Agent reached max_steps before completing the task."
+    save_history_record(user_goal, history, final_answer)
+    return final_answer, history
 
 
 # =========================
