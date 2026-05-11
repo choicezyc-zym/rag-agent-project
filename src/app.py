@@ -1,5 +1,5 @@
 import streamlit as st
-
+import json
 from multi_step_agent import run_multi_step_agent_with_history
 
 
@@ -122,7 +122,7 @@ if st.session_state["runs"]:
                 st.write(thought)
 
                 st.markdown("**Tool Argument**")
-                st.code(str(arguments), language="json")
+                st.code(json.dumps(arguments, ensure_ascii=False, indent=2), language="json")
 
                 st.markdown("**Tool Result**")
                 st.code(str(result), language="text")
