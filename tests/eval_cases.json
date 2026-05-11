@@ -1,0 +1,20 @@
+[
+  {
+    "id": "calc_001",
+    "question": "calculate 23 * 17 and explain the result",
+    "expected_first_tool": "calculator",
+    "expected_keywords": ["391"]
+  },
+  {
+    "id": "rag_001",
+    "question": "what is RAG? Use the local knowledge base to answer.",
+    "expected_first_tool": "rag",
+    "expected_keywords": ["Retrieval", "Generation", "knowledge base"]
+  },
+  {
+    "id": "file_001",
+    "question": "read data/knowledge.txt and summarize the difference between RAG and Agent",
+    "expected_first_tool": "file_reader",
+    "expected_keywords": ["RAG", "Agent", "knowledge base", "tools"]
+  }
+]
