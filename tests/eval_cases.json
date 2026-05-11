@@ -12,9 +12,27 @@
     "expected_keywords": ["Retrieval", "Generation", "knowledge base"]
   },
   {
+    "id": "rag_002",
+    "question": "According to the local knowledge base, answer in English: what is Transformer based on?",
+    "expected_first_tool": "rag",
+    "expected_keywords": ["Transformer", "self-attention"]
+  },
+  {
     "id": "file_001",
     "question": "read data/knowledge.txt and summarize the difference between RAG and Agent",
     "expected_first_tool": "file_reader",
     "expected_keywords": ["RAG", "Agent", "knowledge base", "tools"]
+  },
+  {
+    "id": "file_002",
+    "question": "read data/knowledge.txt and explain what CNN is used for",
+    "expected_first_tool": "file_reader",
+    "expected_keywords": ["CNN", "image"]
+  },
+  {
+    "id": "llm_001",
+    "question": "Rewrite this sentence in a more professional tone: I made an AI project.",
+    "expected_first_tool": "llm",
+    "expected_keywords": ["artificial intelligence"]
   }
 ]
