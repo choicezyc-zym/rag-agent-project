@@ -3,19 +3,15 @@ import os
 import re
 from datetime import datetime
 
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
-MULTI_STEP_HISTORY_PATH = os.path.join(OUTPUT_DIR, "multi_step_history.jsonl")
-
 from llm import ask_llm
 from tools import calculator_tool, file_reader_tool
 from rag_tool import rag_tool
 
 
-# =========================
-# 1. Tool Registry 工具注册表
-# =========================
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
+MULTI_STEP_HISTORY_PATH = os.path.join(OUTPUT_DIR, "multi_step_history.jsonl")
+
 
 TOOLS = {
     "calculator": calculator_tool,
@@ -25,139 +21,39 @@ TOOLS = {
 }
 
 
-# =========================
-# 2. 工具执行函数
-# =========================
+TOOL_SCHEMAS = {
+    "calculator": {
+        "description": "Use this tool when the task requires mathematical calculation.",
+        "required": {
+            "expression": str
+        }
+    },
+    "file_reader": {
+        "description": "Use this tool when the user asks to read a local text file.",
+        "required": {
+            "path": str
+        }
+    },
+    "rag": {
+        "description": "Use this tool when the user asks questions that should be answered from the local knowledge base.",
+        "required": {
+            "query": str
+        }
+    },
+    "llm": {
+        "description": "Use this tool for general language tasks that do not require calculator, file reading, or RAG.",
+        "required": {
+            "prompt": str
+        }
+    },
+    "final": {
+        "description": "Use this tool when enough information has been collected and the task can be answered.",
+        "required": {
+            "answer": str
+        }
+    }
+}
 
-def run_tool(tool_name: str, tool_input: str) -> str:
-    """
-    根据 tool_name 调用对应工具。
-    final 不在这里执行，因为 final 是停止信号，不是真工具。
-    """
-
-    if tool_name not in TOOLS:
-        return f"Error: Unknown tool '{tool_name}'. Available tools: {list(TOOLS.keys())}"
-
-    try:
-        result = TOOLS[tool_name](tool_input)
-        return str(result)
-    except Exception as e:
-        return f"Error while running tool '{tool_name}': {str(e)}"
-
-
-# =========================
-# 3. 从 LLM 输出中提取 JSON
-# =========================
-
-def extract_json(text: str) -> dict:
-    """
-    尝试从 LLM 输出中提取 JSON。
-    即使模型输出了 ```json ... ```，也尽量解析出来。
-    """
-
-    text = text.strip()
-
-    # 去掉 markdown code block
-    text = text.replace("```json", "").replace("```", "").strip()
-
-    # 如果本身就是 JSON
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    # 尝试用正则提取第一个 {...}
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        json_text = match.group(0)
-        return json.loads(json_text)
-
-    raise ValueError("Could not extract valid JSON from LLM output.")
-
-
-# =========================
-# 4. 构建 multi-step prompt
-# =========================
-
-def build_agent_prompt(user_goal: str, history: list) -> str:
-    """
-    每一轮把用户目标和历史步骤发给 LLM，
-    让它决定下一步调用什么工具，或者输出 final。
-    """
-
-    history_text = json.dumps(history, ensure_ascii=False, indent=2)
-
-    prompt = f"""
-You are a multi-step AI agent.
-
-Your job is to complete the user's task step by step.
-
-Available tools:
-1. calculator
-   - Use this for math calculations.
-   - Input should be a math expression, for example: "23 * 17".
-
-2. file_reader
-   - Use this to read a local file.
-   - Input should be a file path, for example: "data/knowledge.txt".
-
-3. rag
-   - Use this to answer questions based on the local knowledge base.
-   - Input should be the user's knowledge-based question.
-
-4. llm
-   - Use this for general reasoning, summarization, rewriting, or planning.
-   - Input should be a clear instruction.
-
-5. final
-   - Use this when the task is completed.
-   - This is not a real tool. It means you should stop and give the final answer.
-
-User goal:
-{user_goal}
-
-Previous steps history:
-{history_text}
-
-Rules:
-- At each step, output valid JSON only.
-- Do not use markdown.
-- Do not add explanations outside JSON.
-- Choose only one tool per step.
-- Use the previous steps history carefully. The history contains tool results from earlier steps.
-- If the previous history already contains enough information to answer the user, use tool = "final".
-- When using tool = "final", the input must be a complete natural language answer to the user's original goal.
-- The final answer must be based on the information in history.
-- Do not invent information that is not supported by tool results.
-- Do not say the file content is not provided if file_reader has already returned file content in history.
-- Do not use the llm tool to summarize previous tool results. If you need to summarize information already in history, use final directly.
-- Do not put only a raw number or raw tool result in the final answer.
-- Keep the final answer concise, preferably 1 to 3 short paragraphs.
-- Avoid markdown lists inside JSON strings.
-- If the user asks to explain something, the final answer must include a short explanation.
-- If the task requires reading a file first, use file_reader before summarizing.
-- If the task requires knowledge base information, use rag.
-- If the task requires calculation, use calculator.
-- If the task requires summarization or rewriting based on previous tool results, use the information in history and answer with final.
-- Do not wrap the final answer in extra quotation marks.
-- When using tool = "final", the input must be plain natural language.
-- Do not use JSON objects, dictionaries, or key-value formats inside the final answer.
-
-
-Output format:
-{{
-  "thought": "Briefly explain why this next step is needed.",
-  "tool": "calculator | file_reader | rag | llm | final",
-  "input": "The input for the selected tool, or a concise final answer if tool is final. Keep this string valid JSON."
-}}
-
-"""
-    return prompt
-
-
-# =========================
-# 5. 保存 history 到 JSONL
-# =========================
 
 def save_history_record(user_goal, history, final_answer):
     """
@@ -176,112 +72,310 @@ def save_history_record(user_goal, history, final_answer):
     with open(MULTI_STEP_HISTORY_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-# =========================
-# 6. Multi-step Agent 主函数
-# =========================
 
-def run_multi_step_agent(user_goal: str, max_steps: int = 5) -> str:
+def extract_json(text):
     """
-    Multi-step Agent 核心循环：
-    计划 -> 执行 -> 观察 -> 记录 -> 再计划 -> final
+    Extract a JSON object from LLM output.
+    Handles plain JSON and ```json code blocks.
     """
+    if not text:
+        return None
 
-    history = []
+    cleaned = text.strip()
 
-    for step in range(1, max_steps + 1):
-        print(f"\n===== Step {step} =====")
+    cleaned = cleaned.replace("```json", "").replace("```", "").strip()
 
-        prompt = build_agent_prompt(user_goal, history)
-        llm_output = ask_llm(prompt)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
 
-        print("\nLLM raw output:")
-        print(llm_output)
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if not match:
+        return None
 
-        try:
-            plan = extract_json(llm_output)
-        except Exception as e:
-            final_answer = f"Agent failed to parse JSON plan: {str(e)}"
-            save_history_record(user_goal, history, final_answer)
-            return final_answer
+    json_text = match.group(0)
 
-        thought = plan.get("thought", "")
-        tool_name = plan.get("tool", "")
-        tool_input = plan.get("input", "")
-
-        print("\nParsed plan:")
-        print(f"Thought: {thought}")
-        print(f"Tool: {tool_name}")
-        print(f"Input: {tool_input}")
-
-        # final 是停止信号
-        if tool_name == "final":
-            final_answer = tool_input
-            save_history_record(user_goal, history, final_answer)
-            return final_answer
-
-        # 执行工具
-        tool_result = run_tool(tool_name, tool_input)
-
-        print("\nTool result:")
-        print(tool_result)
-
-        # 防止 history 太长，保存时可以截断显示
-        history.append({
-            "step": step,
-            "thought": thought,
-            "tool": tool_name,
-            "input": tool_input,
-            "result": tool_result[:2000],
-        })
-
-    final_answer = "Agent reached max_steps before completing the task."
-    save_history_record(user_goal, history, final_answer)
-    return final_answer
+    try:
+        return json.loads(json_text)
+    except json.JSONDecodeError:
+        return None
 
 
-
-
-def run_multi_step_agent_with_history(user_goal, max_steps=5):
+def validate_plan(plan):
     """
-    Streamlit version of the multi-step agent.
-
-    It returns both:
-    - final_answer
-    - history
-
-    This makes it easier to display the agent execution steps in a web UI.
+    Validate whether the LLM-generated tool call follows the required schema.
     """
-    history = []
+    if not isinstance(plan, dict):
+        return False, "Plan must be a JSON object."
 
-    for step in range(1, max_steps + 1):
-        prompt = build_agent_prompt(user_goal, history)
-        raw_output = ask_llm(prompt)
+    tool = plan.get("tool")
+    arguments = plan.get("arguments")
 
-        print(f"\n--- Step {step} LLM Raw Output ---")
+    if not tool:
+        return False, "Missing required field: tool."
+
+    if tool not in TOOL_SCHEMAS:
+        available_tools = ", ".join(TOOL_SCHEMAS.keys())
+        return False, f"Unknown tool: {tool}. Available tools: {available_tools}."
+
+    if not isinstance(arguments, dict):
+        return False, "Missing or invalid field: arguments. It must be a JSON object."
+
+    required_args = TOOL_SCHEMAS[tool]["required"]
+
+    for arg_name, arg_type in required_args.items():
+        if arg_name not in arguments:
+            return False, f"Missing required argument: {arg_name}."
+
+        if not isinstance(arguments[arg_name], arg_type):
+            return False, f"Argument '{arg_name}' must be {arg_type.__name__}."
+
+        if isinstance(arguments[arg_name], str) and not arguments[arg_name].strip():
+            return False, f"Argument '{arg_name}' cannot be empty."
+
+    return True, "OK"
+
+
+def run_tool(tool_name, arguments):
+    """
+    Run a tool using structured arguments.
+    """
+    try:
+        if tool_name == "calculator":
+            return calculator_tool(arguments["expression"])
+
+        if tool_name == "file_reader":
+            return file_reader_tool(arguments["path"])
+
+        if tool_name == "rag":
+            return rag_tool(arguments["query"])
+
+        if tool_name == "llm":
+            return ask_llm(arguments["prompt"])
+
+        return f"Error: unknown tool '{tool_name}'."
+
+    except Exception as e:
+        return f"Error while running tool '{tool_name}': {e}"
+
+
+def build_tool_schema_text():
+    """
+    Convert tool schemas into prompt-friendly text.
+    """
+    lines = []
+
+    for tool_name, schema in TOOL_SCHEMAS.items():
+        required = schema["required"]
+        arg_lines = []
+
+        for arg_name, arg_type in required.items():
+            arg_lines.append(f"- {arg_name}: {arg_type.__name__}")
+
+        lines.append(
+            f"Tool: {tool_name}\n"
+            f"Description: {schema['description']}\n"
+            f"Required arguments:\n" + "\n".join(arg_lines)
+        )
+
+    return "\n\n".join(lines)
+
+
+def build_agent_prompt(user_goal, history):
+    """
+    Build the main planning prompt for the multi-step agent.
+    """
+    tool_schema_text = build_tool_schema_text()
+
+    history_text = json.dumps(history, ensure_ascii=False, indent=2)
+
+    prompt = f"""
+You are a local multi-step AI Agent.
+
+Your job:
+- Understand the user's goal.
+- Choose exactly one tool for the next step.
+- Output valid JSON only.
+- Do not use markdown.
+- Do not add explanations outside JSON.
+
+User goal:
+{user_goal}
+
+Execution history:
+{history_text}
+
+Available tools and schemas:
+{tool_schema_text}
+
+Important rules:
+1. Output exactly one JSON object.
+2. Use the field "tool" to choose one tool.
+3. Use the field "arguments" to provide structured arguments.
+4. Do not use the old "input" field.
+5. Choose only one tool per step.
+6. If the task requires calculation, use "calculator".
+7. If the task requires reading a local file, use "file_reader".
+8. If the task requires local knowledge base information, use "rag".
+9. If the task is general language work and does not require tools, use "llm".
+10. If the history already contains enough information to answer the user, use "final".
+11. When using "final", the answer must be in arguments.answer.
+12. The final answer must be based on the history and tool results.
+13. Do not invent unsupported information.
+14. Do not use the llm tool to summarize previous tool results. If the answer can be written from history, use final directly.
+
+Required output format:
+{{
+  "thought": "Briefly explain why this next step is needed.",
+  "tool": "calculator | file_reader | rag | llm | final",
+  "arguments": {{
+    "argument_name": "argument_value"
+  }}
+}}
+
+Examples:
+
+Calculator:
+{{
+  "thought": "The user asks for a calculation, so I should use the calculator tool.",
+  "tool": "calculator",
+  "arguments": {{
+    "expression": "23 * 17"
+  }}
+}}
+
+File reader:
+{{
+  "thought": "The user asks to read a local file, so I should use the file_reader tool.",
+  "tool": "file_reader",
+  "arguments": {{
+    "path": "data/knowledge.txt"
+  }}
+}}
+
+RAG:
+{{
+  "thought": "The user asks a knowledge-base question, so I should use the RAG tool.",
+  "tool": "rag",
+  "arguments": {{
+    "query": "what is RAG?"
+  }}
+}}
+
+Final:
+{{
+  "thought": "The history contains enough information to answer the user.",
+  "tool": "final",
+  "arguments": {{
+    "answer": "RAG means Retrieval-Augmented Generation. It retrieves relevant information from a knowledge base before generating an answer."
+  }}
+}}
+""".strip()
+
+    return prompt
+
+
+def build_retry_prompt(original_prompt, invalid_output, error_message):
+    """
+    Build a retry prompt when validation fails.
+    """
+    retry_prompt = f"""
+Your previous tool call was invalid.
+
+Validation error:
+{error_message}
+
+Your previous output:
+{invalid_output}
+
+You must fix the tool call.
+
+Return valid JSON only.
+Do not use markdown.
+Do not add explanations outside JSON.
+Do not use the old "input" field.
+Use "arguments" with the correct required fields.
+
+Original task and rules:
+{original_prompt}
+""".strip()
+
+    return retry_prompt
+
+
+def get_valid_plan(prompt, max_retries=2):
+    """
+    Ask the LLM for a tool call plan.
+    If parsing or validation fails, retry a limited number of times.
+    """
+    current_prompt = prompt
+    last_error = ""
+
+    for attempt in range(max_retries + 1):
+        raw_output = ask_llm(current_prompt)
+
+        print(f"\n--- LLM Raw Output Attempt {attempt + 1} ---")
         print(raw_output)
 
         plan = extract_json(raw_output)
 
         if plan is None:
-            final_answer = "Agent failed to parse JSON plan."
+            last_error = "Failed to parse JSON."
+            current_prompt = build_retry_prompt(
+                original_prompt=prompt,
+                invalid_output=raw_output,
+                error_message=last_error
+            )
+            continue
+
+        is_valid, validation_message = validate_plan(plan)
+
+        if is_valid:
+            return plan, raw_output, None
+
+        last_error = validation_message
+        current_prompt = build_retry_prompt(
+            original_prompt=prompt,
+            invalid_output=raw_output,
+            error_message=last_error
+        )
+
+    return None, None, last_error
+
+
+def run_multi_step_agent(user_goal, max_steps=5, max_retries=2):
+    """
+    Command-line version of the multi-step agent.
+    Returns final_answer.
+    """
+    history = []
+
+    for step in range(1, max_steps + 1):
+        prompt = build_agent_prompt(user_goal, history)
+
+        plan, raw_output, error = get_valid_plan(prompt, max_retries=max_retries)
+
+        if plan is None:
+            final_answer = f"Agent failed to generate a valid tool call. Error: {error}"
             save_history_record(user_goal, history, final_answer)
-            return final_answer, history
+            return final_answer
 
         thought = plan.get("thought", "")
         tool_name = plan.get("tool", "")
-        tool_input = plan.get("input", "")
+        arguments = plan.get("arguments", {})
 
         print(f"\nStep {step}")
         print(f"Thought: {thought}")
         print(f"Tool: {tool_name}")
-        print(f"Input: {tool_input}")
+        print(f"Arguments: {arguments}")
 
         if tool_name == "final":
-            final_answer = str(tool_input).strip()
+            final_answer = arguments["answer"].strip()
             save_history_record(user_goal, history, final_answer)
-            return final_answer, history
+            return final_answer
 
-        tool_result = run_tool(tool_name, tool_input)
+        tool_result = run_tool(tool_name, arguments)
 
         print(f"Result: {tool_result}")
 
@@ -289,7 +383,57 @@ def run_multi_step_agent_with_history(user_goal, max_steps=5):
             "step": step,
             "thought": thought,
             "tool": tool_name,
-            "input": tool_input,
+            "arguments": arguments,
+            "result": str(tool_result)[:2000]
+        })
+
+    final_answer = "Agent reached max_steps before completing the task."
+    save_history_record(user_goal, history, final_answer)
+    return final_answer
+
+
+def run_multi_step_agent_with_history(user_goal, max_steps=5, max_retries=2):
+    """
+    Streamlit version of the multi-step agent.
+    Returns:
+    - final_answer
+    - history
+    """
+    history = []
+
+    for step in range(1, max_steps + 1):
+        prompt = build_agent_prompt(user_goal, history)
+
+        plan, raw_output, error = get_valid_plan(prompt, max_retries=max_retries)
+
+        if plan is None:
+            final_answer = f"Agent failed to generate a valid tool call. Error: {error}"
+            save_history_record(user_goal, history, final_answer)
+            return final_answer, history
+
+        thought = plan.get("thought", "")
+        tool_name = plan.get("tool", "")
+        arguments = plan.get("arguments", {})
+
+        print(f"\nStep {step}")
+        print(f"Thought: {thought}")
+        print(f"Tool: {tool_name}")
+        print(f"Arguments: {arguments}")
+
+        if tool_name == "final":
+            final_answer = arguments["answer"].strip()
+            save_history_record(user_goal, history, final_answer)
+            return final_answer, history
+
+        tool_result = run_tool(tool_name, arguments)
+
+        print(f"Result: {tool_result}")
+
+        history.append({
+            "step": step,
+            "thought": thought,
+            "tool": tool_name,
+            "arguments": arguments,
             "result": str(tool_result)[:2000]
         })
 
@@ -298,19 +442,14 @@ def run_multi_step_agent_with_history(user_goal, max_steps=5):
     return final_answer, history
 
 
-# =========================
-# 7. 命令行交互
-# =========================
-
 def main():
-    print("Multi-step RAG Agent started.")
-    print("Type 'exit' to quit.\n")
+    print("Local RAG + Multi-step Agent V2")
+    print("Type 'exit' or 'quit' to stop.\n")
 
     while True:
         user_goal = input("User goal: ").strip()
 
         if user_goal.lower() in ["exit", "quit"]:
-            print("Goodbye!")
             break
 
         if not user_goal:
@@ -318,9 +457,9 @@ def main():
 
         final_answer = run_multi_step_agent(user_goal)
 
-        print("\n===== Final Answer =====")
+        print("\nFinal Answer:")
         print(final_answer)
-        print("========================\n")
+        print("\n" + "-" * 50 + "\n")
 
 
 if __name__ == "__main__":

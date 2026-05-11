@@ -114,15 +114,15 @@ if st.session_state["runs"]:
             step = item.get("step", "")
             tool = item.get("tool", "")
             thought = item.get("thought", "")
-            tool_input = item.get("input", "")
+            arguments = item.get("arguments", {})
             result = item.get("result", "")
 
             with st.expander(f"Step {step} | Tool: {tool}", expanded=True):
                 st.markdown("**Thought**")
                 st.write(thought)
 
-                st.markdown("**Tool Input**")
-                st.code(str(tool_input), language="text")
+                st.markdown("**Tool Argument**")
+                st.code(str(arguments), language="json")
 
                 st.markdown("**Tool Result**")
                 st.code(str(result), language="text")
