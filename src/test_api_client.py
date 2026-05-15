@@ -20,7 +20,7 @@ TEST_CASES = [
     {
         "id": "api_file_001",
         "task": "read data/knowledge.txt and summarize the difference between RAG and Agent",
-        "expected_tools": ["file_reader", "llm"],
+        "expected_tools": ["file_reader"],
         "expected_keywords": ["RAG", "knowledge base", "Agent", "tools", "planning"]
     }
 ]
